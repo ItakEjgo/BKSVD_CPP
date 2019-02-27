@@ -1,12 +1,15 @@
 ﻿// BKSVD_CPP.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
-#include "pch.h"
-#include <iostream>
+#include <bits/stdc++.h>
+#include <Eigen/Dense>
 
-int main()
-{
-    std::cout << "Hello World!\n"; 
+using namespace std;
+using namespace Eigen;
+
+int main(){
+	MatrixXd m = MatrixXd::Random(3, 3);
+	cout << m << endl;
 }
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单
