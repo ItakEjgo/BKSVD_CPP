@@ -21,7 +21,8 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	static default_random_engine e((unsigned int)time(0));
 	static normal_distribution<double> m_n(0, 1);
 	MatrixXd u = MatrixXd::Zero(1, A.cols());
-
+	k = min(k, min(A.rows(), A.cols()));
+	bsize = k;
 	//	Calculate row mean if rows should be centered.
 	if (center) {
 		for (int i = 0; i < A.cols(); i++) {
@@ -43,8 +44,8 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	bool tpose = false;
 	if (ind == 1) {
 		tpose = true;
-		l = u.transpose(); u.setOnes(1, A.rows());
-		A = A.transpose();
+		l = u.adjoint(); u.setOnes(1, A.rows());
+		A = A.adjoint();
 	}
 
 	//	Allocate space for Krylov subspace.
@@ -63,23 +64,40 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	//	Orthogonalize at each step using economy size QR decomposition
 	for (int i = 1; i <= iter; i++) {
 		T = A * block - l * (u * block);
-		block = A.transpose() * T - u.transpose() * (l.transpose() * T);
+		block = A.adjoint() * T - u.adjoint() * (l.adjoint() * T);
 		HouseholderQR<MatrixXd> tmp_qr;
-		qr.compute(block);
-		block = qr.householderQ();
-		R = qr.matrixQR().triangularView<Upper>();
-		
+		tmp_qr.compute(block);
+		block = tmp_qr.householderQ();
+		R = tmp_qr.matrixQR().triangularView<Upper>();
+		K.middleCols((i - 1)*bsize, bsize) = block;
+	}
+	HouseholderQR<MatrixXd> tmp_qr;
+	tmp_qr.compute(K);
+	MatrixXd Q = tmp_qr.householderQ();
+	R = tmp_qr.matrixQR().triangularView<Upper>();
+	T = A * Q - l * (u * Q);
+	JacobiSVD<MatrixXd>svd(T, ComputeFullU | ComputeFullV);
+	MatrixXd Ut = svd.matrixU(), Vt = svd.matrixV();
+	MatrixXd St = Ut.inverse() * T * Vt.transpose().inverse();
+	result.S = St.block(0, 0, k, k);
+	if (!tpose) {
+		result.U = Ut.leftCols(k);
+		result.V = Q * Vt.leftCols(k);
+	}
+	else {
+		result.V = Ut.leftCols(k);
+		result.U = Q * Vt.leftCols(k);
 	}
 	return result;
 }
 
 
 int main(){
-	MatrixXd A(4, 3);
-	A(0, 0) = 0; A(0, 1) = 1; A(0, 2) = 1;
-	A(1, 0) = 2; A(1, 1) = 3; A(1, 2) = 2;
-	A(2, 0) = 1; A(2, 1) = 3; A(2, 2) = 2;
-	A(3, 0) = 4; A(3, 1) = 2; A(3, 2) = 2;
-	bksvd(A);
+	MatrixXd A = MatrixXd::Random(8, 6);
+	bksvd_output result;
+	result = bksvd(A);
+	cout << "U = \n" << result.U << endl;
+	cout << "S = \n" << result.S << endl;
+	cout << "V = \n" << result.V << endl;
 	cout << "Done." << endl;
 }
