@@ -98,9 +98,13 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 int main(){
 	MatrixXd A = MatrixXd::Random(8, 6);
 	bksvd_output result;
+	clock_t start, end;
+	start = clock();
 	result = bksvd(A);
+	end = clock();
 	cout << "U = \n" << result.U << endl;
 	cout << "S = \n" << result.S << endl;
 	cout << "V = \n" << result.V << endl;
 	cout << "Done." << endl;
+	printf("Time used = :%.5f\n", (double)(end - start) / CLOCKS_PER_SEC);
 }
