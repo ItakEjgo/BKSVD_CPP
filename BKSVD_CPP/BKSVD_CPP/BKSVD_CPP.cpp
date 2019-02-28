@@ -1,5 +1,6 @@
 ﻿/*
-BKSVD implementing by C++ based on https://github.com/cpmusco/bksvd
+BKSVD implemented by C++ based on https://github.com/cpmusco/bksvd
+Author: ItakEjgo@SUSTech
 */
 
 #include <bits/stdc++.h>
@@ -71,6 +72,8 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 		R = tmp_qr.matrixQR().triangularView<Upper>();
 		K.middleCols((i - 1)*bsize, bsize) = block;
 	}
+
+	//	Rayleigh-Ritz postprocessing with economy size dense SVD.
 	HouseholderQR<MatrixXd> tmp_qr;
 	tmp_qr.compute(K);
 	MatrixXd Q = tmp_qr.householderQ();
