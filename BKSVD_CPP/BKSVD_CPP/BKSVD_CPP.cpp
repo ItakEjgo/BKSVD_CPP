@@ -189,7 +189,7 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 int main(){
 	ofstream fout;
 	fout.open("Matrix_A.txt");
-	MatrixXd A = MatrixXd::Random(200, 100);
+	MatrixXd A = MatrixXd::Random(80, 10);
 	fout << A << endl;
 	bksvd_output result;
 	clock_t start, end;
