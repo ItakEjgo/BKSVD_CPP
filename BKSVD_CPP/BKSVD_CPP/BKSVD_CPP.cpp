@@ -48,18 +48,22 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	bool tpose = false;
 	if (ind == 1) {
 		tpose = true;
-		l = u.adjoint(); u.setOnes(1, A.rows());
-		A = A.adjoint();
+		l = u.transpose(); u.setOnes(1, A.rows());
+		A.transposeInPlace();
 	}
 
 	//	Allocate space for Krylov subspace.
 	MatrixXd K = MatrixXd::Zero(A.cols(), bsize * iter);
 	//	Random block initialization.
 	MatrixXd block = MatrixXd::Zero(A.cols(), bsize).unaryExpr([](double dummy) {return m_n(e); });
+	bool simplify_flag = A.cols() > bsize;
 	HouseholderQR<MatrixXd> qr;
 	qr.compute(block);
 	block = qr.householderQ();
 	MatrixXd R = qr.matrixQR().triangularView<Upper>();	// [block, R] = qr(block, 0), But this is not simplified QR
+	if (simplify_flag) {
+		block.conservativeResize(block.rows(), bsize);
+	}
 
 	//	Preallocate space for temporary products.
 	MatrixXd T = MatrixXd::Zero(A.cols(), bsize);
@@ -68,10 +72,15 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	//	Orthogonalize at each step using economy size QR decomposition
 	for (int i = 1; i <= iter; i++) {
 		T = A * block - l * (u * block);
-		block = A.adjoint() * T - u.adjoint() * (l.adjoint() * T);
+		block = A.transpose() * T - u.transpose() * (l.transpose() * T);
+		simplify_flag = block.rows() > block.cols();
+		int val = block.cols();
 		HouseholderQR<MatrixXd> tmp_qr;
 		tmp_qr.compute(block);
 		block = tmp_qr.householderQ();
+		if (simplify_flag) {
+			block.conservativeResize(block.rows(), val);
+		}
 		R = tmp_qr.matrixQR().triangularView<Upper>();
 		K.middleCols((i - 1)*bsize, bsize) = block;
 	}
@@ -128,16 +137,20 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	bool tpose = false;
 	if (ind == 1) {
 		tpose = true;
-		l = u.adjoint(); u.setOnes(1, A.rows());
-		A = A.adjoint();
+		l = u.transpose(); u.setOnes(1, A.rows());
+		A.transposeInPlace();
 	}
 
 	//	Random block initialization.
 	MatrixXd block = MatrixXd::Zero(A.cols(), bsize).unaryExpr([](double dummy) {return m_n(e); });
+	bool simplify_flag = A.cols() > bsize;
 	HouseholderQR<MatrixXd> qr;
 	qr.compute(block);
 	block = qr.householderQ();
 	MatrixXd R = qr.matrixQR().triangularView<Upper>();	// [block, R] = qr(block, 0), But this is not simplified QR
+	if (simplify_flag) {
+		block.conservativeResize(block.rows(), bsize);
+	}
 
 	//	Preallocate space for temporary products.
 	MatrixXd T = MatrixXd::Zero(A.cols(), bsize);
@@ -146,11 +159,14 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	//	Orthogonalize at each step using economy size QR decomposition
 	for (int i = 1; i <= iter; i++) {
 		T = A * block - l * (u * block);
-		block = A.adjoint() * T - u.adjoint() * (l.adjoint() * T);
+		block = A.transpose() * T - u.transpose() * (l.transpose() * T);
+		simplify_flag = block.rows() > block.cols();
+		int val = block.cols();
 		HouseholderQR<MatrixXd> tmp_qr;
 		tmp_qr.compute(block);
 		block = tmp_qr.householderQ();
 		R = tmp_qr.matrixQR().triangularView<Upper>();
+		if (simplify_flag) block.conservativeResize(block.rows(), val);
 	}
 
 	//	Rayleigh-Ritz postprocessing with economy size dense SVD.
@@ -171,7 +187,10 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 }
 
 int main(){
-	MatrixXd A = MatrixXd::Random(8, 6);
+	ofstream fout;
+	fout.open("Matrix_A.txt");
+	MatrixXd A = MatrixXd::Random(200, 100);
+	fout << A << endl;
 	bksvd_output result;
 	clock_t start, end;
 	start = clock();
@@ -180,6 +199,7 @@ int main(){
 	cout << "bksvd U = \n" << result.U << endl;
 	cout << "bksvd S = \n" << result.S << endl;
 	cout << "bksvd V = \n" << result.V << endl;
+	//cout << "bksvd U * S * V = \n" << (result.U * result.S) * result.V << endl;
 	printf("Time used = :%.5f second(s)\n", (double)(end - start) / CLOCKS_PER_SEC);
 	start = clock();
 	result = sisvd(A);
@@ -187,5 +207,6 @@ int main(){
 	cout << "sisvd U = \n" << result.U << endl;
 	cout << "sisvd S = \n" << result.S << endl;
 	cout << "sisvd V = \n" << result.V << endl;
+	//cout << "sisvd U * S * V = \n" << (result.U * result.S) * result.V << endl;
 	printf("Time used = :%.5f second(s)\n", (double)(end - start) / CLOCKS_PER_SEC);
 }
