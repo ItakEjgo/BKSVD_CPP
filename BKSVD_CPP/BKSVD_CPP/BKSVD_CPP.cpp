@@ -8,6 +8,8 @@ Author: ItakEjgo@SUSTech
 #include <random>
 #include <ctime>
 
+#define EIGEN_USE_MKL_ALL
+
 using namespace std;
 using namespace Eigen;
 
@@ -25,7 +27,7 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	static default_random_engine e((unsigned int)time(0));
 	static normal_distribution<double> m_n(0, 1);
 	
-	k = min(k, min(A.rows(), A.cols()));
+	k = min(k, (int)min(A.rows(), A.cols()));
 	bsize = k;
 
 	if (k < 1 || iter < 1 || bsize < k) {
@@ -66,7 +68,6 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	HouseholderQR<MatrixXd> qr;
 	qr.compute(block);
 	block = qr.householderQ() * MatrixXd::Identity(A.cols(), bsize);
-	MatrixXd R = qr.matrixQR().triangularView<Upper>();	// [block, R] = qr(block, 0), But this is not simplified QR
 
 	//	Preallocate space for temporary products.
 	MatrixXd T = MatrixXd::Zero(A.cols(), bsize);
@@ -79,7 +80,6 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 		HouseholderQR<MatrixXd> tmp_qr;
 		tmp_qr.compute(block);
 		block = tmp_qr.householderQ() * MatrixXd::Identity(block.rows(), block.cols());;
-		R = tmp_qr.matrixQR().triangularView<Upper>();
 		K.middleCols((i - 1)*bsize, bsize) = block;
 	}
 
@@ -88,11 +88,15 @@ bksvd_output bksvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	
 	tmp_qr.compute(K);
 	MatrixXd Q = tmp_qr.householderQ() * MatrixXd::Identity(K.rows(), K.cols());
-	R = tmp_qr.matrixQR().triangularView<Upper>();
 
 	T = A * Q - l * (u * Q);
-	//JacobiSVD<MatrixXd>svd(T, ComputeFullU | ComputeFullV); // For small scale Matrix
-	BDCSVD<MatrixXd>svd(T, ComputeThinU | ComputeThinV);	//	For large scale Matrix
+	
+	clock_t st, ed;
+	st = clock();
+	BDCSVD<MatrixXd> svd(T, ComputeThinU | ComputeThinV);    //	For large scale Matrix
+	//JacobiSVD<MatrixXd>svd(T, ComputeThinU | ComputeThinV); // For small scale Matrix
+	ed = clock();
+	printf("svd time is %.5f second(s)\n", (double)(ed - st) / CLOCKS_PER_SEC);
 	MatrixXd Ut = svd.matrixU(), Vt = svd.matrixV();
 	MatrixXd St = svd.singularValues().asDiagonal();
 	result.S = St.block(0, 0, k, k);
@@ -115,7 +119,7 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	static default_random_engine e((unsigned int)time(0));
 	static normal_distribution<double> m_n(0, 1);
 	
-	k = min(k, min(A.rows(), A.cols()));
+	k = min(k, (int)min(A.rows(), A.cols()));
 	bsize = k;
 	if (k < 1 || iter < 1 || bsize < k) {
 		cerr << "sisvd:BadInput, one or more inputs outside required range" << endl;
@@ -153,7 +157,6 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 	HouseholderQR<MatrixXd> qr;
 	qr.compute(block);
 	block = qr.householderQ() * MatrixXd::Identity(A.cols(), bsize);
-	MatrixXd R = qr.matrixQR().triangularView<Upper>();	// [block, R] = qr(block, 0), But this is not simplified QR
 
 	//	Preallocate space for temporary products.
 	MatrixXd T = MatrixXd::Zero(A.cols(), bsize);
@@ -165,7 +168,6 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 		HouseholderQR<MatrixXd> tmp_qr;
 		tmp_qr.compute(block);
 		block = tmp_qr.householderQ() * MatrixXd::Identity(block.rows(), block.cols());
-		R = tmp_qr.matrixQR().triangularView<Upper>();
 	}
 
 	//	Rayleigh-Ritz postprocessing with economy size dense SVD.
@@ -187,28 +189,41 @@ bksvd_output sisvd(MatrixXd A, int k = 6, int iter = 3, int bsize = 6, bool cent
 }
 
 int main(){
+	static default_random_engine e((unsigned int)time(0));
+	static normal_distribution<double> m_n(0, 1);
+	/*
 	ofstream fout;
 	fout.open("Matrix_A.txt");
-	MatrixXd A = MatrixXd::Random(200, 100);
+	MatrixXd A = MatrixXd::Zero(10000, 161).unaryExpr([](double dummy) {return m_n(e); });
 	fout << A << endl;
+	*/
+	MatrixXd A = MatrixXd::Zero(10000, 161);
+	ifstream fin; 
+	double val;
+	for (int i = 0; i < 10000; i++) {
+		for (int j = 0; j < 161; j++) {
+			fin >> val;
+			A(i, j) = val;
+		}
+	}
 	
 	bksvd_output result1, result2;
 	clock_t start, end;
 	start = clock();
-	result1 = bksvd(A);
+	result1 = bksvd(A,10);
 	end = clock();
-	cout << "bksvd U = \n" << result1.U << endl;
-	cout << "bksvd S = \n" << result1.S << endl;
-	cout << "bksvd V = \n" << result1.V << endl;
+	//cout << "bksvd U = \n" << result1.U << endl;
+	//cout << "bksvd S = \n" << result1.S << endl;
+	//cout << "bksvd V = \n" << result1.V << endl;
 	//cout << "bksvd U * S * V = \n" << (result.U * result.S) * result.V << endl;
 	printf("Time used = :%.5f second(s)\n", (double)(end - start) / CLOCKS_PER_SEC);
 	
 	start = clock();
 	result2 = sisvd(A);
 	end = clock();
-	cout << "sisvd U = \n" << result2.U << endl;
-	cout << "sisvd S = \n" << result2.S << endl;
-	cout << "sisvd V = \n" << result2.V << endl;
+	//cout << "sisvd U = \n" << result2.U << endl;
+	//cout << "sisvd S = \n" << result2.S << endl;
+	//cout << "sisvd V = \n" << result2.V << endl;
 	//cout << "sisvd U * S * V = \n" << (result.U * result.S) * result.V << endl;
 	printf("Time used = :%.5f second(s)\n", (double)(end - start) / CLOCKS_PER_SEC);
 
